@@ -8,6 +8,8 @@ import type {
   InteractionType,
   LeadSource,
   LeadStatus,
+  MemoryKind,
+  MemoryStatus,
   Pillar,
   Platform,
   ProjectStatus,
@@ -231,3 +233,23 @@ export const BRAND_SECTIONS: Record<BrandSection, { label: string; hint: string 
   objetivos: { label: "Objetivos", hint: "Objetivos del trimestre." },
 };
 export const BRAND_SECTION_ORDER = Object.keys(BRAND_SECTIONS) as BrandSection[];
+
+// ── Memoria y biblioteca ────────────────────────────────────
+
+export const MEMORY_KINDS: Record<MemoryKind, { label: string; short: string; tone: Tone }> = {
+  pdf: { label: "PDF", short: "PDF", tone: "peach" },
+  note: { label: "Nota", short: "NOTA", tone: "violet" },
+  web: { label: "Web", short: "WEB", tone: "blue" },
+  article: { label: "Artículo", short: "ARTÍCULO", tone: "blue" },
+  youtube: { label: "YouTube", short: "YOUTUBE", tone: "grey" },
+  tiktok: { label: "TikTok", short: "TIKTOK", tone: "pink" },
+  instagram: { label: "Instagram", short: "INSTA", tone: "pink" },
+  book: { label: "Libro", short: "LIBRO", tone: "butter" },
+};
+
+export const MEMORY_STATUS: Record<MemoryStatus, string> = {
+  pending: "En cola",
+  processing: "Procesando…",
+  ready: "Indexado",
+  error: "Error",
+};

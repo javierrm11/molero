@@ -12,3 +12,9 @@ export const requireUser = cache(async () => {
   if (!data.user) redirect("/login");
   return { supabase, user: data.user };
 });
+
+/** Ámbito de IA/datos con la sesión del usuario (para funciones compartidas con el cron). */
+export async function sessionScope() {
+  const { supabase, user } = await requireUser();
+  return { client: supabase, userId: user.id };
+}

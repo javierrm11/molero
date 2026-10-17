@@ -1,21 +1,23 @@
-import { Brain, ChevronRight, ClipboardCheck, Focus, Inbox, Settings2, Sparkles } from "lucide-react";
+import { BookOpen, Brain, ChevronRight, ClipboardCheck, Focus, Inbox, Library, Moon, Palette, Settings2, Sparkles, Sunrise } from "lucide-react";
 import Link from "next/link";
 
 import { isCurrent } from "@/components/block-row";
+import { BriefingCard, LifePanelSections } from "@/components/life-panel";
 import { ProgressRing } from "@/components/progress-ring";
 import { Dot } from "@/components/ui/badge";
 import { requireUser } from "@/lib/auth";
 import { BLOCK_TYPES, FORMATS, LEAD_STATUSES } from "@/lib/constants";
 import { ensureBrandContext, getBlocksForDay, getWeekGoals, inboxCount } from "@/lib/data";
 import { formatDuration, formatLongDate, formatTime, greeting, nowMs, todayLocal } from "@/lib/dates";
-import type { Content, Lead, TimeBlock } from "@/lib/types";
+import { getLifePanel } from "@/lib/integrations/google";
+import type { Briefing, Content, Lead, TimeBlock } from "@/lib/types";
 
 export default async function HomePage() {
-  const { supabase } = await requireUser();
+  const { supabase, user } = await requireUser();
   const today = todayLocal();
   const now = nowMs();
 
-  const [, blocksRaw, goals, inbox, leadsRes, contentsRes] = await Promise.all([
+  const [, blocksRaw, goals, inbox, leadsRes, contentsRes, panel, briefingRes] = await Promise.all([
     ensureBrandContext(supabase),
     getBlocksForDay(supabase, today),
     getWeekGoals(supabase, today),
@@ -33,7 +35,10 @@ export default async function HomePage() {
       .eq("planned_at", today)
       .neq("status", "published")
       .limit(5),
+    getLifePanel(supabase, user.id, today),
+    supabase.from("briefings").select("*").eq("date", today).maybeSingle(),
   ]);
+  const briefing = (briefingRes.data ?? null) as Briefing | null;
 
   const blocks = blocksRaw as TimeBlock[];
   const leads = (leadsRes.data ?? []) as Lead[];
@@ -62,6 +67,8 @@ export default async function HomePage() {
           ) : null}
         </Link>
       </header>
+
+      <BriefingCard briefing={briefing} />
 
       {current ? (
         <section aria-labelledby="ahora" className="flex flex-col gap-3.5 rounded-[28px] bg-accent p-5 text-white">
@@ -153,6 +160,8 @@ export default async function HomePage() {
         </section>
       ) : null}
 
+      <LifePanelSections panel={panel} />
+
       {leads.length > 0 || contents.length > 0 ? (
         <section aria-labelledby="hoy-toca" className="flex flex-col gap-3 rounded-[26px] bg-card p-[18px]">
           <h2 id="hoy-toca" className="text-base font-extrabold">
@@ -200,13 +209,18 @@ export default async function HomePage() {
         </div>
       </div>
 
-      <nav aria-label="Más" className="grid grid-cols-3 gap-2.5">
+      <nav aria-label="Más" className="grid grid-cols-4 gap-2">
         {[
+          { href: "/resumen", label: "Resumen", icon: Sunrise },
+          { href: "/noche", label: "Noche", icon: Moon },
+          { href: "/memoria", label: "Memoria", icon: BookOpen },
+          { href: "/biblioteca", label: "Biblioteca", icon: Library },
+          { href: "/marca", label: "Marca", icon: Palette },
           { href: "/revision", label: "Revisión", icon: ClipboardCheck },
           { href: "/cerebro", label: "Cerebro", icon: Brain },
           { href: "/ajustes", label: "Ajustes", icon: Settings2 },
         ].map(({ href, label, icon: Icon }) => (
-          <Link key={href} href={href} className="flex flex-col items-center gap-1.5 rounded-[22px] bg-card py-3.5 text-[13px] font-bold">
+          <Link key={href} href={href} className="flex flex-col items-center gap-1.5 rounded-[20px] bg-card py-3 text-xs font-bold">
             <Icon className="size-5 text-accent" aria-hidden />
             {label}
           </Link>

@@ -204,3 +204,176 @@ export const QUICK_ACTIONS = [
   { id: "follow_up", label: "Mensaje de seguimiento", prompt: "Redáctame un mensaje de seguimiento para el lead más urgente." },
   { id: "month_summary", label: "Resume mi mes", prompt: "Resume cómo va mi mes: contenido, ventas y qué ajustar." },
 ] as const;
+
+// ── Panel de vida: resumen matinal ──────────────────────────
+
+export const briefingSchema = z.object({
+  focus: z.string().describe("La única cosa más importante del día, en una o dos frases."),
+  summary: z.string().describe("Resumen del día en 2-3 frases, para leer en 20 segundos."),
+  items: z
+    .array(
+      z.object({
+        source: z.enum(["gmail", "calendar", "tasks", "crm", "contenido", "uco", "agenda"]),
+        text: z.string().describe("Una frase accionable. Nombra al remitente o el evento."),
+      }),
+    )
+    .max(6),
+});
+export type BriefingAi = z.infer<typeof briefingSchema>;
+
+export function briefingPrompt(date: string, data: string): string {
+  return `Prepara el resumen de la mañana de Javier para el ${date}. Datos de sus herramientas:
+${data}
+
+Reglas:
+- Prioriza lo que exige una acción hoy: correos que hay que contestar, entregas de la universidad, llamadas y seguimientos de clientes.
+- Ignora boletines, promociones y notificaciones automáticas.
+- Máximo 6 puntos en items, de más a menos importante.
+- No inventes nada que no esté en los datos.`;
+}
+
+// ── Revisión nocturna ───────────────────────────────────────
+
+export const nightSchema = z.object({
+  good: z.string().describe("Lo que ha ido bien hoy, concreto, en una o dos frases."),
+  improve: z.string().describe("Una sola cosa a mejorar, con el patrón si se repite."),
+  tomorrow: z
+    .object({
+      start: hhmm,
+      end: hhmm,
+      type: blockType,
+      title: z.string(),
+    })
+    .nullable()
+    .describe("Un bloque para mañana que ataque lo que hay que mejorar, o null si no hace falta."),
+});
+export type NightAi = z.infer<typeof nightSchema>;
+
+export function nightPrompt(input: { date: string; mood: number | null; note: string; stats: string; history: string }): string {
+  return `Revisión nocturna de Javier del ${input.date}.
+Nota que se pone (1-5): ${input.mood ?? "sin nota"}.
+Lo que cuenta: """${input.note || "(no ha escrito nada)"}"""
+Bloques de la agenda: ${input.stats}
+Últimas noches:
+${input.history || "Sin historial."}
+
+Sé un coach directo y amable: reconoce lo concreto que ha ido bien y propone UNA mejora pequeña y realista. Si detectas un patrón que se repite en las últimas noches, dilo.`;
+}
+
+export const coachSchema = z.object({
+  good: z.array(z.string()).min(1).max(4),
+  pattern: z.string().describe("El patrón que más se repite (bueno o malo), con datos."),
+  one_change: z.string().describe("Un solo cambio concreto para la semana siguiente."),
+  change_block: z
+    .object({ start: hhmm, end: hhmm, type: blockType, title: z.string() })
+    .nullable()
+    .describe("Si el cambio se puede poner en la agenda de lunes a viernes, el bloque; si no, null."),
+});
+export type CoachAi = z.infer<typeof coachSchema>;
+
+export function coachPrompt(data: string): string {
+  return `Haz el informe semanal de hábitos de Javier a partir de sus revisiones nocturnas y su agenda:
+${data}
+
+Busca patrones (horas en las que se pierde el foco, días flojos, relación con el sueño o la carga de clase). Propón UN solo cambio, pequeño y medible.`;
+}
+
+// ── Memoria y biblioteca ────────────────────────────────────
+
+export const ingestSchema = z.object({
+  title: z.string().describe("Título claro de la fuente."),
+  summary: z.string().describe("Resumen de 2-4 frases."),
+  key_points: z.array(z.string()).min(1).max(6).describe("Ideas clave aprendidas, una frase cada una."),
+  topics: z.array(z.string()).max(4).describe("Temas en una o dos palabras, p. ej. IA, Ventas, Productividad."),
+});
+export type IngestAi = z.infer<typeof ingestSchema>;
+
+export function ingestPrompt(kind: string, text: string): string {
+  return `Resume esta fuente (${kind}) para la memoria personal de Javier. Escribe en español aunque el original esté en otro idioma.
+"""
+${text}
+"""`;
+}
+
+export const videoSchema = ingestSchema.extend({
+  channel: z.string().nullable(),
+  duration: z.string().nullable().describe("Duración aproximada, p. ej. 18 min."),
+  notes: z.string().describe("Apuntes detallados del vídeo (400-1200 palabras), en español, con lo que se explica paso a paso."),
+});
+export type VideoAi = z.infer<typeof videoSchema>;
+
+export const VIDEO_PROMPT = `Mira este vídeo y prepara su ficha para la memoria personal de Javier, en español: título, canal, duración, resumen, ideas clave, temas y apuntes detallados de lo que se explica.`;
+
+export const ocrPrompt = "Transcribe todo el texto de este PDF tal cual, página a página, separando cada página con una línea «--- página N ---». No resumas.";
+
+export const answerSchema = z.object({
+  answer: z.string().describe("Respuesta en markdown. Cita los fragmentos con [n]."),
+  citations: z.array(z.number().int()).describe("Números de los fragmentos usados."),
+});
+
+export function answerPrompt(question: string, fragments: string): string {
+  return `Responde a la pregunta de Javier usando SOLO estos fragmentos de su memoria. Cita con [n] los que uses. Si no está en los fragmentos, dilo claramente y sugiere qué podría subir.
+Fragmentos:
+${fragments}
+
+Pregunta: ${question}`;
+}
+
+// ── Kit de marca y piezas ───────────────────────────────────
+
+export const BRAND_FONTS = [
+  "Manrope",
+  "Sora",
+  "Outfit",
+  "Figtree",
+  "Plus Jakarta Sans",
+  "DM Sans",
+  "Space Grotesk",
+  "Bricolage Grotesque",
+  "Onest",
+  "Unbounded",
+] as const;
+
+export const brandKitSchema = z.object({
+  tone: z.array(z.string()).min(2).max(5),
+  brand_values: z.array(z.string()).min(2).max(5),
+  voice: z.string().describe("Una frase que describa cómo habla la marca, en primera persona."),
+  colors: z
+    .array(z.object({ name: z.string(), hex: z.string().regex(/^#[0-9A-Fa-f]{6}$/) }))
+    .length(5)
+    .describe("Principal, oscuro para texto, fondo claro, acento claro y acento cálido. Contraste AA del texto sobre el fondo."),
+  display_font: z.enum(BRAND_FONTS),
+  body_font: z.enum(BRAND_FONTS),
+});
+export type BrandKitAi = z.infer<typeof brandKitSchema>;
+
+export const BRAND_KIT_PROMPT =
+  "Propón el kit de marca de Molero a partir del Cerebro: tono, valores, voz, 5 colores (con nombre en español) y tipografías de la lista. Coherente con un perfil Full Stack + IA cercano, no corporativo.";
+
+export const pieceSchema = z.object({
+  title: z.string(),
+  slides: z
+    .array(
+      z.object({
+        kind: z.enum(["hook", "content", "list", "cta"]),
+        title: z.string().describe("Texto grande de la diapositiva, máximo 12 palabras."),
+        body: z.string().nullable().describe("Texto secundario, máximo 35 palabras. En list, una línea por punto."),
+      }),
+    )
+    .min(1)
+    .max(8),
+});
+export type PieceAi = z.infer<typeof pieceSchema>;
+
+export function piecePrompt(format: "carousel" | "cover" | "linkedin", brief: ContentBrief): string {
+  const rules = {
+    carousel: "Carrusel de 5 a 7 diapositivas: la primera es el hook (kind hook), luego contenido o listas y la última un CTA (kind cta).",
+    cover: "Portada de vídeo de YouTube: UNA sola diapositiva kind hook con un título de máximo 6 palabras, muy legible.",
+    linkedin: "Imagen para un post de LinkedIn: UNA sola diapositiva kind hook o list con la idea principal.",
+  }[format];
+  return `Convierte este contenido en una pieza visual. ${rules}
+${brief.title}
+Hook: ${brief.hook ?? "—"}
+Guion: ${brief.script ?? "—"}
+CTA: ${brief.cta ?? "—"}`;
+}

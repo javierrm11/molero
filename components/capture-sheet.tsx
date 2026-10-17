@@ -132,7 +132,7 @@ export function CaptureSheet() {
 
   return (
     <>
-      {pathname.startsWith("/asistente") ? null : (
+      {pathname.startsWith("/asistente") || pathname === "/memoria/preguntar" ? null : (
       <button
         type="button"
         aria-label="Captura rápida"

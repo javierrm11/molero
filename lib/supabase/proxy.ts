@@ -1,7 +1,18 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/api/focus", "/~offline", "/serwist", "/manifest.webmanifest", "/pwa-icon"];
+// Rutas sin sesión: las que llaman los Atajos de iOS, los cron y Telegram tienen su propio token o secreto.
+const PUBLIC_PATHS = [
+  "/login",
+  "/api/focus",
+  "/api/library/save",
+  "/api/cron",
+  "/api/telegram",
+  "/~offline",
+  "/serwist",
+  "/manifest.webmanifest",
+  "/pwa-icon",
+];
 
 /** Refresca la sesión de Supabase y manda a /login si no hay usuario. */
 export async function updateSession(request: NextRequest) {

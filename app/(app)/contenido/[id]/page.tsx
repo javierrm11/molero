@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Markdown } from "@/components/markdown";
@@ -72,6 +73,15 @@ export default async function ContentDetailPage({ params }: { params: Promise<{ 
       ) : null}
 
       <AiPanel id={content.id} platforms={content.platforms} />
+
+      {content.hook || content.script ? (
+        <Link
+          href={`/marca/piezas?contenido=${content.id}`}
+          className="flex h-12 items-center justify-center rounded-[16px] bg-card text-sm font-extrabold text-accent-dark"
+        >
+          Crear carrusel o portada con mi marca
+        </Link>
+      ) : null}
 
       <details className="group rounded-[26px] bg-card p-[18px]">
         <summary className="cursor-pointer list-none text-base font-extrabold">Programar en la agenda</summary>

@@ -13,3 +13,7 @@ export function createAdminClient() {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 }
+
+export function hasAdminKey(): boolean {
+  return !!process.env.SUPABASE_SERVICE_ROLE_KEY;
+}

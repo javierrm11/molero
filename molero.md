@@ -3,7 +3,7 @@
 > Centro de mando personal de la marca **Molero**: contenido, ventas y crecimiento en una sola PWA, con una IA (Gemini) que conoce todo el contexto de la marca.
 
 - **Autor / único usuario:** Javier Ruiz Molero
-- **Estado:** v1 implementada + M6 (agenda y modo foco)
+- **Estado:** v1 implementada + M6 (agenda y modo foco) + M7–M10
 - **Fecha:** 12/10/2026
 - **Nombre de trabajo:** Molero HQ (provisional)
 
@@ -83,6 +83,10 @@ Escalera: contenido gratis → comunidad o newsletter → producto barato (plant
 | **M4. Revisión semanal** | Métricas a mano, objetivos y resumen con IA |
 | **M5. Asistente IA** | Generar, adaptar y analizar con contexto completo |
 | **M6. Agenda y modo foco** | Organizar el día en bloques y hacer solo lo que toca (Concentración del iPhone) |
+| **M7. Panel de vida** | Calendario, Gmail y Tareas de Google en el inicio y resumen matinal por Telegram |
+| **M8. Memoria y biblioteca** | Segundo cerebro (PDFs, notas, webs, vídeos) con preguntas y fuentes citadas |
+| **M9. Revisión nocturna** | Check-in de cada noche y un solo cambio a la semana |
+| **M10. Kit de marca** | Tono, colores y tipografías, y generador de carruseles y portadas |
 
 ### v2
 
@@ -192,6 +196,13 @@ Un flujo guiado cada domingo o lunes:
 - **Modo foco:** pantalla completa con solo la tarea actual, cuenta atrás, checklist del tipo de bloque y la pantalla siempre encendida. Al terminar un bloque enlazado, el contenido avanza en el pipeline (grabar → Grabado, editar → Editado, subir → Publicado).
 - **Concentración del iPhone:** al empezar un bloque se abre el atajo `Molero Foco <Tipo>` (`shortcuts://run-shortcut`), que activa ese modo de Concentración. Al terminarlo se abre `Molero Foco Off`. Una automatización de Atajos «Al abrir Instagram/TikTok» consulta `/api/focus/current?token=…` y avisa de lo que toca. Es lo más cerca de «solo poder hacer eso» que permite una PWA; el bloqueo real necesitaría una app nativa con la API de Screen Time.
 
+### M7–M10. Sistema personal
+
+- **M7. Panel de vida:** OAuth de Google (Calendar y Gmail en solo lectura; Tasks para marcar hechas). Inicio muestra eventos, correo sin leer y tareas. Cada mañana un cron genera el resumen (foco del día, lo importante, estadísticas) y lo manda por Telegram. Del correo solo se envían a la IA cabeceras y extracto.
+- **M8. Memoria y biblioteca:** cada fuente (PDF, nota, web, vídeo de YouTube, TikTok, libro) se convierte en texto, se resume, se trocea y se indexa con embeddings en pgvector. Las preguntas buscan los fragmentos más parecidos y la IA responde citándolos. La biblioteca es la misma memoria filtrada por «lo que he visto o leído». Se alimenta desde el menú Compartir de iOS. El historial de YouTube o TikTok no se puede leer automáticamente.
+- **M9. Revisión nocturna:** a las 22:00 llega un aviso por Telegram. La revisión pide una nota del 1 al 5 y una frase, la IA responde con lo que está bien y lo que hay que mejorar, y propone un bloque para mañana. El domingo, informe semanal con el patrón que más se repite y un solo cambio.
+- **M10. Kit de marca:** el kit se define una vez (o lo propone la IA a partir del Cerebro). El generador convierte un guion en carrusel, portada de YouTube o imagen de LinkedIn en PNG con los colores y tipografías del kit.
+
 ---
 
 ## 5. Pantalla de inicio (móvil)
@@ -251,7 +262,7 @@ settings             user_id, focus_token, focus_shortcuts (jsonb),
 ```
 
 Un solo usuario, pero con RLS activado en todas las tablas (`auth.uid()` = mi ID) por seguridad.
-Todas las tablas llevan `user_id` (default `auth.uid()`) para las políticas, y `captures` añade `title` y `ai` (jsonb). SQL completo en `migrations/1.sql`.
+Todas las tablas llevan `user_id` (default `auth.uid()`) para las políticas, y `captures` añade `title` y `ai` (jsonb). SQL completo en `migrations/1.sql`. M7–M10 añaden en `migrations/2.sql`: `google_accounts`, `briefings`, `memory_sources`, `memory_chunks` (vector 768), `daily_checkins`, `coach_reports`, `brand_kit` y `brand_pieces`.
 
 ---
 

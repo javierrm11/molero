@@ -13,12 +13,14 @@ import { getSettings } from "@/lib/data";
 import { focusShortcutName, shortcutUrl } from "@/lib/focus";
 
 import { regenerateToken, saveFocusSettings } from "./actions";
+import { Connections } from "./connections";
 
 export const metadata = { title: "Ajustes" };
 
 const thousands = new Intl.NumberFormat("es-ES");
 
-export default async function SettingsPage() {
+export default async function SettingsPage({ searchParams }: { searchParams: Promise<{ google?: string }> }) {
+  const { google } = await searchParams;
   const { supabase, user } = await requireUser();
   const settings = await getSettings(supabase);
   const h = await headers();
@@ -41,6 +43,8 @@ export default async function SettingsPage() {
   return (
     <>
       <PageHeader title="Ajustes" eyebrow={user.email} back="/" />
+
+      <Connections supabase={supabase} userId={user.id} settings={settings} origin={origin} googleStatus={google} />
 
       <section aria-labelledby="concentracion" className="flex flex-col gap-3 rounded-[26px] bg-card p-[18px]">
         <h2 id="concentracion" className="text-base font-extrabold">

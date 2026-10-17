@@ -196,4 +196,130 @@ export interface Settings {
   focus_shortcuts: Partial<Record<BlockType, string>>;
   focus_off_shortcut: string;
   focus_enabled: boolean;
+  // Migración 2 (pueden faltar si aún no se ha aplicado)
+  telegram_chat_id?: string | null;
+  telegram_link_code?: string;
+  morning_brief?: boolean;
+  night_checkin?: boolean;
+}
+
+// ── Migración 2 ─────────────────────────────────────────────
+
+export interface GoogleAccount {
+  user_id: string;
+  email: string;
+  refresh_token: string;
+  access_token: string | null;
+  expires_at: string | null;
+  scopes: string[];
+}
+
+export interface BriefingItem {
+  source: "gmail" | "calendar" | "tasks" | "crm" | "contenido" | "uco" | "agenda";
+  text: string;
+}
+
+export interface Briefing {
+  id: string;
+  date: string;
+  focus: string;
+  summary: string;
+  items: BriefingItem[];
+  stats: { emails?: number; to_reply?: number; tasks?: number; follow_ups?: number; blocks?: number; minutes?: number };
+  sent_at: string | null;
+  created_at: string;
+}
+
+export type MemoryKind = "pdf" | "note" | "web" | "youtube" | "tiktok" | "instagram" | "article" | "book";
+export type MemoryStatus = "pending" | "processing" | "ready" | "error";
+
+export interface MemorySource {
+  id: string;
+  kind: MemoryKind;
+  title: string;
+  url: string | null;
+  file_path: string | null;
+  file_size: number | null;
+  status: MemoryStatus;
+  error: string | null;
+  in_library: boolean;
+  summary: string | null;
+  key_points: string[];
+  topics: string[];
+  user_note: string | null;
+  body: string | null;
+  meta: { pages?: number; duration?: string; channel?: string; author?: string; words?: number; chunks?: number };
+  consumed_at: string | null;
+  created_at: string;
+}
+
+export interface MemoryMatch {
+  id: string;
+  source_id: string;
+  idx: number;
+  page: number | null;
+  content: string;
+  similarity: number;
+}
+
+export interface SuggestedBlock {
+  date: string;
+  start: string;
+  end: string;
+  type: BlockType;
+  title: string;
+}
+
+export interface DailyCheckin {
+  id: string;
+  date: string;
+  mood: number | null;
+  note: string | null;
+  ai_good: string | null;
+  ai_improve: string | null;
+  ai_tomorrow: SuggestedBlock | null;
+  applied: boolean;
+}
+
+export interface CoachReport {
+  id: string;
+  week_start: string;
+  good: string[];
+  pattern: string | null;
+  one_change: string | null;
+  change_block: { start: string; end: string; type: BlockType; title: string } | null;
+  applied: boolean;
+}
+
+export interface BrandColor {
+  name: string;
+  hex: string;
+}
+
+export interface BrandKit {
+  user_id: string;
+  tone: string[];
+  brand_values: string[];
+  voice: string | null;
+  colors: BrandColor[];
+  display_font: string;
+  body_font: string;
+  logo_text: string;
+}
+
+export type PieceFormat = "carousel" | "cover" | "linkedin";
+
+export interface Slide {
+  kind: "hook" | "content" | "list" | "cta";
+  title: string;
+  body: string | null;
+}
+
+export interface BrandPiece {
+  id: string;
+  content_id: string | null;
+  format: PieceFormat;
+  title: string;
+  slides: Slide[];
+  created_at: string;
 }

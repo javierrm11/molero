@@ -1,6 +1,7 @@
 import "server-only";
 
 import { GoogleGenAI, type Content, type Part } from "@google/genai";
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
 import { createClient } from "@/lib/supabase/server";
@@ -17,9 +18,16 @@ export type AiTask =
   | "review"
   | "chat"
   | "plan_day"
-  | "context_update";
+  | "context_update"
+  | "briefing"
+  | "night_checkin"
+  | "coach_week"
+  | "memory_ingest"
+  | "memory_answer"
+  | "brand_kit"
+  | "piece";
 
-export type AiTier = "fast" | "pro";
+export type AiTier = "lite" | "fast" | "pro";
 
 export class AiError extends Error {}
 
@@ -28,14 +36,23 @@ export interface ChatTurn {
   text: string;
 }
 
+/** Contexto para usar la IA sin sesión (cron, tareas en segundo plano): cliente admin + usuario. */
+export interface ServerScope {
+  client: SupabaseClient;
+  userId: string;
+}
+
+export type Attachment = { mimeType: string; base64: string } | { fileUri: string; mimeType?: string };
+
 export interface GenerateOptions {
   task: AiTask;
   system: string;
   prompt: string;
-  /** Adjuntos binarios (p. ej. el audio de una captura). */
-  attachments?: { mimeType: string; base64: string }[];
+  /** Adjuntos: audio, PDF o un vídeo de YouTube por URL. */
+  attachments?: Attachment[];
   history?: ChatTurn[];
   tier?: AiTier;
+  scope?: ServerScope;
 }
 
 function getClient(): GoogleGenAI {
@@ -45,9 +62,16 @@ function getClient(): GoogleGenAI {
 }
 
 function modelFor(tier: AiTier): string {
-  return tier === "pro"
-    ? (process.env.GEMINI_MODEL_PRO ?? "gemini-pro-latest")
-    : (process.env.GEMINI_MODEL_FAST ?? "gemini-flash-latest");
+  if (tier === "pro") return process.env.GEMINI_MODEL_PRO ?? "gemini-pro-latest";
+  if (tier === "lite") return process.env.GEMINI_MODEL_LITE ?? "gemini-flash-lite-latest";
+  return process.env.GEMINI_MODEL_FAST ?? "gemini-flash-latest";
+}
+
+const EMBEDDING_MODEL = process.env.GEMINI_EMBEDDING_MODEL ?? "gemini-embedding-2";
+export const EMBEDDING_DIMENSIONS = 768;
+
+function toPart(a: Attachment): Part {
+  return "base64" in a ? { inlineData: { mimeType: a.mimeType, data: a.base64 } } : { fileData: { fileUri: a.fileUri, mimeType: a.mimeType } };
 }
 
 function buildContents(options: GenerateOptions): Content[] {
@@ -55,17 +79,15 @@ function buildContents(options: GenerateOptions): Content[] {
     role: turn.role,
     parts: [{ text: turn.text }],
   }));
-  const parts: Part[] = [
-    ...(options.attachments ?? []).map((a) => ({ inlineData: { mimeType: a.mimeType, data: a.base64 } })),
-    { text: options.prompt },
-  ];
+  const parts: Part[] = [...(options.attachments ?? []).map(toPart), { text: options.prompt }];
   return [...history, { role: "user", parts }];
 }
 
-async function logUsage(task: AiTask, model: string, input: number, output: number) {
+async function logUsage(scope: ServerScope | undefined, task: AiTask, model: string, input: number, output: number) {
   try {
-    const supabase = await createClient();
-    await supabase.from("ai_logs").insert({ task, model, input_tokens: input, output_tokens: output });
+    const row = { task, model, input_tokens: input, output_tokens: output };
+    if (scope) await scope.client.from("ai_logs").insert({ ...row, user_id: scope.userId });
+    else await (await createClient()).from("ai_logs").insert(row);
   } catch {
     // El registro de uso nunca debe romper la respuesta.
   }
@@ -90,7 +112,7 @@ async function call(options: GenerateOptions, json?: { schema: unknown }) {
   }
 
   const usage = response.usageMetadata;
-  await logUsage(options.task, model, usage?.promptTokenCount ?? 0, usage?.candidatesTokenCount ?? 0);
+  await logUsage(options.scope, options.task, model, usage?.promptTokenCount ?? 0, usage?.candidatesTokenCount ?? 0);
 
   const text = response.text?.trim();
   if (!text) throw new AiError("Gemini ha devuelto una respuesta vacía.");
@@ -113,6 +135,45 @@ export async function generateJson<T>(options: GenerateOptions & { schema: z.Zod
     console.error("[ai] JSON inválido", text, error);
     throw new AiError("La respuesta de Gemini no tiene el formato esperado.");
   }
+}
+
+/**
+ * Embeddings para la memoria. gemini-embedding-2 no usa task_type: la tarea va como prefijo del texto.
+ * Devuelve un vector por texto, en el mismo orden.
+ */
+export async function embed(
+  texts: string[],
+  kind: "document" | "query",
+  options: { title?: string; scope?: ServerScope } = {},
+): Promise<number[][]> {
+  const ai = getClient();
+  const prefixed = texts.map((t) =>
+    kind === "query" ? `task: search result | query: ${t}` : `title: ${options.title ?? "none"} | text: ${t}`,
+  );
+  const vectors: number[][] = [];
+  const BATCH = 16;
+  try {
+    for (let i = 0; i < prefixed.length; i += BATCH) {
+      const batch = prefixed.slice(i, i + BATCH);
+      const res = await ai.models.embedContent({
+        model: EMBEDDING_MODEL,
+        contents: batch.map((text) => ({ parts: [{ text }] })),
+        config: { outputDimensionality: EMBEDDING_DIMENSIONS },
+      });
+      const values = (res.embeddings ?? []).map((e) => e.values ?? []);
+      if (values.length !== batch.length || values.some((v) => v.length !== EMBEDDING_DIMENSIONS)) {
+        throw new Error(`Embeddings inesperados: ${values.length}/${batch.length}`);
+      }
+      vectors.push(...values);
+    }
+  } catch (error) {
+    console.error("[ai] error de embeddings", error);
+    throw new AiError("No se han podido indexar los textos.");
+  }
+  // Los embeddings se cobran por tokens de entrada; estimación de ~4 caracteres por token.
+  const approxTokens = Math.round(prefixed.reduce((sum, t) => sum + t.length, 0) / 4);
+  await logUsage(options.scope, kind === "query" ? "memory_answer" : "memory_ingest", EMBEDDING_MODEL, approxTokens, 0);
+  return vectors;
 }
 
 /** Mensaje de error apto para mostrar en la interfaz. */
